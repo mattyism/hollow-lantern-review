@@ -29,7 +29,7 @@ jobs:
               shutil.copyfile(n,out/n)
           (out/'images').mkdir()
           m=json.loads(pathlib.Path('manifest.json').read_text())
-          assert len(m['cases'])==9
+          assert 18 <= len(m['cases']) <= 21
           for c in m['cases']:
               b=base64.b64decode(pathlib.Path('image-data',c['id']+'.b64').read_text(),validate=True)
               assert hashlib.sha256(b).hexdigest()==c['exportSha256']
