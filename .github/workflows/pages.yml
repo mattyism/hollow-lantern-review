@@ -20,22 +20,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Decode and verify original image exports
+      - name: Verify original image exports and authorized Kittl samples
         run: |
           python3 - <<'PY'
-          import pathlib,json,base64,hashlib,shutil
+          import pathlib,json,base64,hashlib,shutil,urllib.request,urllib.parse,re,concurrent.futures
           out=pathlib.Path('_site');out.mkdir()
           for n in ['index.html','app.js','style.css','manifest.json','.nojekyll']:
               shutil.copyfile(n,out/n)
           (out/'images').mkdir()
           m=json.loads(pathlib.Path('manifest.json').read_text())
-          assert 27 <= len(m['cases']) <= 33
-          for c in m['cases']:
-              b=base64.b64decode(pathlib.Path('image-data',c['id']+'.b64').read_text(),validate=True)
+          assert 33 <= len(m['cases']) <= 45
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          def build(c):
+              if not c.get('image'):return
+              assert re.fullmatch(r'images/v[1-5]-[a-z0-9-]+\.png',c['image'])
+              encoded=pathlib.Path('image-data',c['id']+'.b64')
+              if encoded.is_file():
+                  b=base64.b64decode(encoded.read_text(),validate=True)
+              else:
+                  assert re.fullmatch(r'v5-(raven|axolotl|baphomet)-(ideogram|sunburst|nano)',c['id'])
+                  url=c['sourceUrl'];u=urllib.parse.urlsplit(url)
+                  assert u.scheme=='https' and u.netloc=='cache.kittl.com' and not u.query and not u.fragment
+                  assert re.fullmatch(r'/pr:sharp/plain/api/users/[a-z0-9]+/uploads/[a-z0-9]+\.png',u.path)
+                  with urllib.request.build_opener(NoRedirect()).open(url,timeout=60) as r:b=r.read(40000001)
+              assert len(b)<=40000000
               assert hashlib.sha256(b).hexdigest()==c['exportSha256']
               assert b[:8]==b'\x89PNG\r\n\x1a\n'
               (out/'images'/pathlib.Path(c['image']).name).write_bytes(b)
-          print('Verified all nine original full-resolution PNG files.')
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:list(pool.map(build,m['cases']))
+          print('Verified original pixels for all available gallery images.')
           PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
