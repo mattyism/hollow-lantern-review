@@ -38,6 +38,11 @@ jobs:
               encoded=pathlib.Path('image-data',c['id']+'.b64')
               if encoded.is_file():
                   b=base64.b64decode(encoded.read_text(),validate=True)
+              elif pathlib.Path('image-data',c['id']+'.parts').is_dir():
+                  assert re.fullmatch(r'v5-(raven|axolotl|baphomet)-riverflow',c['id'])
+                  pieces=sorted(pathlib.Path('image-data',c['id']+'.parts').glob('*.b64'))
+                  assert 1 <= len(pieces) <= 30
+                  b=base64.b64decode(''.join(p.read_text() for p in pieces),validate=True)
               else:
                   assert re.fullmatch(r'v5-(raven|axolotl|baphomet)-(ideogram|sunburst|nano)',c['id'])
                   url=c['sourceUrl'];u=urllib.parse.urlsplit(url)
